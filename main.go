@@ -14,8 +14,8 @@ import (
 
 const (
 	serviceName        = "midi-request-trigger"
-	serviceDescription = "Takes trigger MIDI messages by HTTP requests and trigger HTTP requests by MIDI messages"
-	serviceVersion     = "0.1"
+	serviceDescription = "Takes trigger MIDI messages by HTTP or MQTT requests and trigger HTTP or MQTT requests by MIDI messages"
+	serviceVersion     = "0.2"
 )
 
 // App is the global application structure for communicating between servers and storing information.

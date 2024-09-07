@@ -1,6 +1,6 @@
 # midi-request-trigger
 
-A service that triggers HTTP requests when MIDI messages are recieved and triggers MIDI messages when HTTP requests are received.
+A service that triggers HTTP requests and/or MQTT messages when MIDI messages are recieved and triggers MIDI messages when HTTP requests and/or MQTT messages are received.
 
 ## Install
 
