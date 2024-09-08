@@ -110,7 +110,7 @@ On MacOS, there is an IAC Driver that can be enabled in Audio MIDI Setup.
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    log_level: 1
+    log_level: 2
 ```
 
 ### Example note trigger configuration
@@ -120,7 +120,7 @@ midi_routers:
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    log_level: 1
+    log_level: 2
     note_triggers:
       - channel: 0
         note: 0
@@ -136,7 +136,7 @@ midi_routers:
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    log_level: 1
+    log_level: 2
     request_triggers:
       - channel: 0
         note: 0
@@ -152,7 +152,7 @@ midi_routers:
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    log_level: 2
+    log_level: 3
     note_triggers:
       - channel: 0
         note: 0
@@ -190,7 +190,7 @@ midi_routers:
         user: mqtt
         password: password
         topic: midi/behringer_wing
-      log_level: 3
+      log_level: 4
       note_triggers:
         - channel: 0
           note: 1

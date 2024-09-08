@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"gitlab.com/gomidi/midi/v2"
@@ -21,8 +22,10 @@ import (
 type LogLevel int
 
 const (
-	// Logs only errors.
-	ErrorLog LogLevel = iota
+	// Logs info messages.
+	InfoLog LogLevel = iota
+	// Log only errors.
+	ErrorLog
 	// MQTT, HTTP, and MIDI receive logging.
 	ReceiveLog
 	// MQTT, HTTP, and MIDI send logging.
@@ -33,7 +36,7 @@ const (
 
 // Provides a string value for a log level.
 func (l LogLevel) String() string {
-	return [...]string{"Error", "Receive", "Send", "Debug"}[l]
+	return [...]string{"Info", "Error", "Receive", "Send", "Debug"}[l]
 }
 
 // Configurations relating to MQTT connection.
@@ -134,10 +137,11 @@ type MidiRouter struct {
 	RequestTriggers []RequestTrigger `fig:"request_triggers"`
 
 	// How much logging.
-	// 0 - Errors
-	// 1 - MQTT, HTTP, and MIDI receive logging.
-	// 2 - MQTT, HTTP, and MIDI send logging.
-	// 3 - Debug
+	// 0 - Info
+	// 1 - Errors
+	// 2 - MQTT, HTTP, and MIDI receive logging.
+	// 3 - MQTT, HTTP, and MIDI send logging.
+	// 4 - Debug
 	LogLevel LogLevel `fig:"log_level"`
 
 	// Connection to MIDI device.
@@ -462,81 +466,105 @@ func (r *MidiRouter) MqttSubscribe(topic string) {
 func (r *MidiRouter) Connect() {
 	// If request triggers defined, find the out port.
 	if len(r.RequestTriggers) != 0 {
-		out, err := midi.FindOutPort(r.Device)
-		if err != nil {
-			log.Println("Can't find output device:", r.Device)
-		} else {
-			r.MidiOut = out
-		}
+		go func() {
+			for {
+				out, err := midi.FindOutPort(r.Device)
+				if err != nil {
+					r.Log(ErrorLog, "Can't find output device: %s", r.Device)
+				} else {
+					r.MidiOut = out
+					break
+				}
+
+				r.Log(ErrorLog, "Retrying in 1 minute.")
+				time.Sleep(time.Minute)
+			}
+		}()
 	}
+
 	// If listener is disabled, stop here.
-	if r.DisableListener {
-		return
+	if !r.DisableListener {
+		go func() {
+			for {
+				// Try finding input port.
+				r.Log(InfoLog, "Connecting to input device: %s", r.Device)
+				in, err := midi.FindInPort(r.Device)
+				if err != nil {
+					r.Log(ErrorLog, "Can't find input device: %s", r.Device)
+					r.Log(ErrorLog, "Retrying in 1 minute.")
+					time.Sleep(time.Minute)
+					continue
+				}
+
+				// Start listening to MIDI messages.
+				stop, err := midi.ListenTo(in, func(msg midi.Message, timestampms int32) {
+					var channel, note, velocity uint8
+					switch {
+					// Get notes with an velocity set.
+					case msg.GetNoteStart(&channel, &note, &velocity):
+						r.Log(ReceiveLog, "starting note %s(%d) on channel %v with velocity %v", midi.Note(note), note, channel, velocity)
+						// Process request.
+						r.sendRequest(channel, note, velocity)
+
+						// If no velocity is set, an note end message is received.
+					case msg.GetNoteEnd(&channel, &note):
+						r.Log(ReceiveLog, "ending note %s(%d) on channel %v", midi.Note(note), note, channel)
+						// Process request.
+						r.sendRequest(channel, note, 0)
+					default:
+						// ignore
+					}
+				})
+				if err != nil {
+					r.Log(ErrorLog, "Error listening to device: %s", err)
+					r.Log(ErrorLog, "Retrying in 1 minute.")
+					time.Sleep(time.Minute)
+					continue
+				}
+				r.Log(InfoLog, "Connected to input device: %s", r.Device)
+
+				// Update stop function for disconnects.
+				r.ListenerStop = stop
+				break
+			}
+		}()
 	}
-
-	// Try finding input port.
-	log.Println("Connecting to device:", r.Device)
-	in, err := midi.FindInPort(r.Device)
-	if err != nil {
-		log.Println("Can't find device:", r.Device)
-		return
-	}
-
-	// Start listening to MIDI messages.
-	stop, err := midi.ListenTo(in, func(msg midi.Message, timestampms int32) {
-		var channel, note, velocity uint8
-		switch {
-		// Get notes with an velocity set.
-		case msg.GetNoteStart(&channel, &note, &velocity):
-			r.Log(ReceiveLog, "starting note %s(%d) on channel %v with velocity %v", midi.Note(note), note, channel, velocity)
-			// Process request.
-			r.sendRequest(channel, note, velocity)
-
-		// If no velocity is set, an note end message is received.
-		case msg.GetNoteEnd(&channel, &note):
-			r.Log(ReceiveLog, "ending note %s(%d) on channel %v", midi.Note(note), note, channel)
-			// Process request.
-			r.sendRequest(channel, note, 0)
-		default:
-			// ignore
-		}
-	})
-	if err != nil {
-		r.Log(ErrorLog, "Error listening to device: %s", err)
-		return
-	}
-
-	// Update stop function for disconnects.
-	r.ListenerStop = stop
 
 	if r.MQTT.Host != "" && r.MQTT.Port != 0 {
-		// Connect to MQTT.
-		mqtt_opts := mqtt.NewClientOptions()
-		mqtt_opts.AddBroker(fmt.Sprintf("tcp://%s:%d", r.MQTT.Host, r.MQTT.Port))
-		mqtt_opts.SetClientID(r.MQTT.ClientId)
-		mqtt_opts.SetUsername(r.MQTT.User)
-		mqtt_opts.SetPassword(r.MQTT.Password)
-		r.MqttClient = mqtt.NewClient(mqtt_opts)
+		go func() {
+			for {
+				// Connect to MQTT.
+				mqtt_opts := mqtt.NewClientOptions()
+				mqtt_opts.AddBroker(fmt.Sprintf("tcp://%s:%d", r.MQTT.Host, r.MQTT.Port))
+				mqtt_opts.SetClientID(r.MQTT.ClientId)
+				mqtt_opts.SetUsername(r.MQTT.User)
+				mqtt_opts.SetPassword(r.MQTT.Password)
+				r.MqttClient = mqtt.NewClient(mqtt_opts)
 
-		// Connect and failures are fatal exiting service.
-		r.Log(DebugLog, "Connecting to MQTT")
-		if t := r.MqttClient.Connect(); t.Wait() && t.Error() != nil {
-			log.Fatalf("MQTT error: %s", t.Error())
-			return
-		}
+				// Connect and failures are fatal exiting service.
+				r.Log(DebugLog, "Connecting to MQTT")
+				if t := r.MqttClient.Connect(); t.Wait() && t.Error() != nil {
+					log.Fatalf("MQTT error: %s", t.Error())
+					r.Log(ErrorLog, "Retrying in 1 minute.")
+					time.Sleep(time.Minute)
+					continue
+				}
 
-		// Subscribe to MQTT topics.
-		r.MqttSubscribe(r.MQTT.Topic + "/send")
-		r.MqttSubscribe(r.MQTT.Topic + "/status/check")
-		// Subscribe to command topics configured.
-		for _, trig := range r.RequestTriggers {
-			if trig.MqttTopic != "" {
-				r.MqttSubscribe(trig.MqttTopic)
+				// Subscribe to MQTT topics.
+				r.MqttSubscribe(r.MQTT.Topic + "/send")
+				r.MqttSubscribe(r.MQTT.Topic + "/status/check")
+				// Subscribe to command topics configured.
+				for _, trig := range r.RequestTriggers {
+					if trig.MqttTopic != "" {
+						r.MqttSubscribe(trig.MqttTopic)
+					}
+					if trig.MqttSubTopic != "" {
+						r.MqttSubscribe(r.MQTT.Topic + "/" + trig.MqttSubTopic)
+					}
+				}
+				break
 			}
-			if trig.MqttSubTopic != "" {
-				r.MqttSubscribe(r.MQTT.Topic + "/" + trig.MqttSubTopic)
-			}
-		}
+		}()
 	}
 }
 
@@ -546,4 +574,5 @@ func (r *MidiRouter) Disconnect() {
 	if r.ListenerStop != nil {
 		r.ListenerStop()
 	}
+	r.MqttClient.Disconnect(0)
 }
