@@ -110,7 +110,7 @@ On MacOS, there is an IAC Driver that can be enabled in Audio MIDI Setup.
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    debug_listener: true
+    log_level: 1
 ```
 
 ### Example note trigger configuration
@@ -120,7 +120,7 @@ midi_routers:
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    debug_listener: true
+    log_level: 1
     note_triggers:
       - channel: 0
         note: 0
@@ -136,7 +136,7 @@ midi_routers:
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    debug_listener: true
+    log_level: 1
     request_triggers:
       - channel: 0
         note: 0
@@ -152,7 +152,7 @@ midi_routers:
 midi_routers:
   - name: service_notifications
     device: IAC Driver Bus 1
-    debug_listener: true
+    log_level: 2
     note_triggers:
       - channel: 0
         note: 0
@@ -174,5 +174,82 @@ midi_routers:
         headers:
           Content-Type:
             - multipart/form-data; boundary=---------------------------888832887744
-        debug_request: true
+```
+
+### Example mqtt config
+
+```yaml
+---
+midi_routers:
+    - name: Wing Midi Signals
+      device: WING Port 4
+      mqtt:
+        host: 10.0.0.2
+        port: 1883
+        client_id: midi_mqtt_bridge
+        user: mqtt
+        password: password
+        topic: midi/behringer_wing
+      log_level: 3
+      note_triggers:
+        - channel: 0
+          note: 1
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "1"
+        - channel: 0
+          note: 2
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "2"
+        - channel: 0
+          note: 3
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "3"
+        - channel: 0
+          note: 4
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "4"
+        - channel: 0
+          note: 5
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "5"
+        - channel: 0
+          note: 6
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "6"
+        - channel: 0
+          note: 7
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "7"
+        - channel: 0
+          note: 8
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/enc/val
+          mqtt_payload:
+            - "8"
+        - channel: 0
+          match_all_notes: true
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/bu/val
+          mqtt_payload:
+            - "1"
+        - channel: 0
+          match_all_notes: true
+          match_all_velocities: true
+          mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/bu/val
+          mqtt_payload:
+            - "0"
 ```

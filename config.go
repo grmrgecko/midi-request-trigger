@@ -48,7 +48,7 @@ func (a *App) ReadConfig() {
 	} else if _, err := os.Stat(etcConfig); err == nil {
 		configFile = etcConfig
 	} else {
-		log.Fatal("Unable to find a configuration file.")
+		log.Println("Unable to find a configuration file.")
 	}
 
 	// Load the configuration file.
@@ -68,6 +68,7 @@ func (a *App) ReadConfig() {
 		fig.Dirs(filePath),
 	)
 	if err != nil {
+		app.config = config
 		log.Printf("Error parsing configuration: %s\n", err)
 		return
 	}

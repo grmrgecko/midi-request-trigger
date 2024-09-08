@@ -70,12 +70,14 @@ type MQTTPayload struct {
 
 // Triggers that occur from MIDI messages received.
 type NoteTrigger struct {
-	// If set, every note played will be matched.
-	MatchAllNotes bool `fig:"match_all_notes"`
 	// Channel to match.
 	Channel uint8 `fig:"channel"`
+	// If we should match all channel values.
+	MatchAllChannels bool `fig:"match_all_channels"`
 	// Note to match.
 	Note uint8 `fig:"note"`
+	// If we should match all note values.
+	MatchAllNotes bool `fig:"match_all_notes"`
 	// Velocity to match.
 	Velocity uint8 `fig:"velocity"`
 	// If we should match all velocity values.
@@ -83,7 +85,7 @@ type NoteTrigger struct {
 	// Custom MQTT message. Do not set to ignore MQTT.
 	MqttTopic string `fig:"mqtt_topic"`
 	// Nil payload will generate a payload with midi info.
-	MqttPayload []interface{} `fig:"mqtt_payload"`
+	MqttPayload interface{} `fig:"mqtt_payload"`
 	// If the HTTP request should includ midi info.
 	MidiInfoInRequest bool `fig:"midi_info_in_request"`
 	// Should SSL requests require a valid certificate.
@@ -133,17 +135,17 @@ type MidiRouter struct {
 
 	// How much logging.
 	// 0 - Errors
-	// 1 - MQTT and OSC receive logging.
-	// 2 - MQTT and OSC send logging.
+	// 1 - MQTT, HTTP, and MIDI receive logging.
+	// 2 - MQTT, HTTP, and MIDI send logging.
 	// 3 - Debug
-	LogLevel LogLevel `yaml:"log_level" json:"log_level"`
+	LogLevel LogLevel `fig:"log_level"`
 
 	// Connection to MIDI device.
 	MidiOut drivers.Out `fig:"-"`
 	// Function to stop listening to MIDI device.
 	ListenerStop func() `fig:"-"`
 	// The client connection to MQTT.
-	MqttClient mqtt.Client `yaml:"-" json:"-"`
+	MqttClient mqtt.Client `fig:"-"`
 }
 
 // Logging function to allow log levels.
@@ -156,7 +158,7 @@ func (r *MidiRouter) Log(level LogLevel, format string, args ...interface{}) {
 // When a MIDI message occurs, send the HTTP request.
 func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 	// If MQTT firehose not disabled, send to general cmd topic.
-	if r.MQTT.Host != "" && r.MQTT.Port != 0 && !r.MQTT.DisableMidiFirehose {
+	if r.MqttClient != nil && !r.MQTT.DisableMidiFirehose {
 		payload := MQTTPayload{
 			Channel:  channel,
 			Note:     note,
@@ -168,7 +170,7 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 		} else {
 			topic := r.MQTT.Topic + "/cmd"
 			r.MqttClient.Publish(topic, 0, true, data)
-			r.Log(SendLog, "-> [MQTT] %s", topic)
+			r.Log(SendLog, "-> [MQTT] %s: %s", topic, string(data))
 		}
 	}
 
@@ -177,14 +179,19 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 		// If match all notes, process this request.
 		// If not, check if channel, note, and velocity matches.
 		// The velocity may be defined to accept all.
-		if trig.MatchAllNotes || (trig.Channel == channel && trig.Note == note && (trig.Velocity == velocity || trig.MatchAllVelocities)) {
+		if (trig.Channel == channel || trig.MatchAllChannels) && (trig.Note == note || trig.MatchAllNotes) && (trig.Velocity == velocity || trig.MatchAllVelocities) {
 			// For all logging, we want to print the message so setup a common string to print.
 			logInfo := fmt.Sprintf("note %s(%d) on channel %v with velocity %v", midi.Note(note), note, channel, velocity)
 
-			if trig.MqttTopic != "" {
+			if trig.MqttTopic != "" && r.MqttClient != nil {
 				if trig.MqttPayload != nil {
-					r.MqttClient.Publish(trig.MqttTopic, 0, true, trig.MqttPayload)
-					r.Log(SendLog, "-> [MQTT] %s", trig.MqttTopic)
+					data, err := json.Marshal(trig.MqttPayload)
+					if err != nil {
+						r.Log(ErrorLog, "Json Encode: %s", err)
+					} else {
+						r.MqttClient.Publish(trig.MqttTopic, 0, true, data)
+						r.Log(SendLog, "-> [MQTT] %s: %s", trig.MqttTopic, string(data))
+					}
 				} else {
 					payload := MQTTPayload{
 						Channel:  channel,
@@ -196,7 +203,7 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 						r.Log(ErrorLog, "Json Encode: %s", err)
 					} else {
 						r.MqttClient.Publish(trig.MqttTopic, 0, true, data)
-						r.Log(SendLog, "-> [MQTT] %s", trig.MqttTopic)
+						r.Log(SendLog, "-> [MQTT] %s: %s", trig.MqttTopic, string(data))
 					}
 				}
 			}
