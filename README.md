@@ -243,13 +243,16 @@ midi_routers:
         - channel: 0
           match_all_notes: true
           match_all_velocities: true
+          delay_before: 200ms
           mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/bu/val
           mqtt_payload:
             - "1"
         - channel: 0
           match_all_notes: true
           match_all_velocities: true
+          delay_before: 200ms
           mqtt_topic: osc/behringer_wing/send/$ctl/user/2/2/bu/val
           mqtt_payload:
             - "0"
+          delay_after: 200ms
 ```

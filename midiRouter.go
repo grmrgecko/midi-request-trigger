@@ -85,6 +85,9 @@ type NoteTrigger struct {
 	Velocity uint8 `fig:"velocity"`
 	// If we should match all velocity values.
 	MatchAllVelocities bool `fig:"match_all_velocities"`
+	// Allow delaying the request.
+	DelayBefore time.Duration `fig:"delay_before"`
+	DelayAfter  time.Duration `fig:"deplay_after"`
 	// Custom MQTT message. Do not set to ignore MQTT.
 	MqttTopic string `fig:"mqtt_topic"`
 	// Nil payload will generate a payload with midi info.
@@ -187,7 +190,12 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 			// For all logging, we want to print the message so setup a common string to print.
 			logInfo := fmt.Sprintf("note %s(%d) on channel %v with velocity %v", midi.Note(note), note, channel, velocity)
 
+			// Delay before.
+			time.Sleep(trig.DelayBefore)
+
+			// If MQTT trigger, send the MQTT request.
 			if trig.MqttTopic != "" && r.MqttClient != nil {
+				// If payload provided, send the defined payload.
 				if trig.MqttPayload != nil {
 					data, err := json.Marshal(trig.MqttPayload)
 					if err != nil {
@@ -197,6 +205,7 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 						r.Log(SendLog, "-> [MQTT] %s: %s", trig.MqttTopic, string(data))
 					}
 				} else {
+					// If no payload provided, send the note information as JSON.
 					payload := MQTTPayload{
 						Channel:  channel,
 						Note:     note,
@@ -212,6 +221,7 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 				}
 			}
 
+			// If URL trigger defined, perform a HTTP request.
 			if trig.URL != "" {
 				// Default method to GET if nothing is defined.
 				if trig.Method == "" {
@@ -280,6 +290,9 @@ func (r *MidiRouter) sendRequest(channel, note, velocity uint8) {
 					r.Log(DebugLog, "Trigger response: %s\n%s", logInfo, string(body))
 				}
 			}
+
+			// Delay after.
+			time.Sleep(trig.DelayAfter)
 		}
 	}
 }
