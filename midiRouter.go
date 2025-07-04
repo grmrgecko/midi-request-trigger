@@ -613,5 +613,7 @@ func (r *MidiRouter) Disconnect() {
 	if r.ListenerStop != nil {
 		r.ListenerStop()
 	}
-	r.MqttClient.Disconnect(0)
+	if r.MqttClient != nil {
+		r.MqttClient.Disconnect(0)
+	}
 }

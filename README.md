@@ -70,7 +70,11 @@ On MacOS, you can setup a Launch Agent in `~/Library/LaunchAgents/com.mrgeckosme
     <false/>
 </dict>
 </plist>
+```
 
+For local network connection, you need to code sign your build.
+```bash
+codesign -s - --force --deep /path/to/bin/midi-request-trigger
 ```
 
 Start with:
