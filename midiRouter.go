@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	log "github.com/sirupsen/logrus"
 	"gitlab.com/gomidi/midi/v2"
 	"gitlab.com/gomidi/midi/v2/drivers"
 )
@@ -128,7 +128,7 @@ type RequestTrigger struct {
 type MidiRouter struct {
 	// Used for human readable config.
 	Name string `fig:"name"`
-	// Midi device to connect.
+	// Midi device to connect, accepts regular expression.
 	Device string `fig:"device"`
 	// MQTT Connection if you are to integrate with MQTT.
 	MQTT MQTTConfig `fig:"mqtt"`
@@ -480,10 +480,23 @@ func (r *MidiRouter) Connect() {
 	// If request triggers defined, find the out port.
 	if len(r.RequestTriggers) != 0 {
 		go func() {
+			deviceRx, err := regexp.Compile(r.Device)
+			if err != nil {
+				log.Printf("Failed to compile regexp of '%s': %v", r.Device, err)
+			}
 			for {
-				out, err := midi.FindOutPort(r.Device)
+				var out drivers.Out
+				for _, device := range midi.GetOutPorts() {
+					if deviceRx.MatchString(device.String()) {
+						err = device.Open()
+						out = device
+					}
+				}
+				if out == nil {
+					err = fmt.Errorf("unable to find matching device")
+				}
 				if err != nil {
-					r.Log(ErrorLog, "Can't find output device: %s", r.Device)
+					r.Log(ErrorLog, "Failed to find output device '%s': %v", r.Device, err)
 				} else {
 					r.MidiOut = out
 					break
@@ -498,12 +511,25 @@ func (r *MidiRouter) Connect() {
 	// If listener is disabled, stop here.
 	if !r.DisableListener {
 		go func() {
+			deviceRx, err := regexp.Compile(r.Device)
+			if err != nil {
+				log.Printf("Failed to compile regexp of '%s': %v", r.Device, err)
+			}
 			for {
 				// Try finding input port.
 				r.Log(InfoLog, "Connecting to input device: %s", r.Device)
-				in, err := midi.FindInPort(r.Device)
+				var in drivers.In
+				for _, device := range midi.GetInPorts() {
+					if deviceRx.MatchString(device.String()) {
+						err = device.Open()
+						in = device
+					}
+				}
+				if in == nil {
+					err = fmt.Errorf("unable to find matching device")
+				}
 				if err != nil {
-					r.Log(ErrorLog, "Can't find input device: %s", r.Device)
+					r.Log(ErrorLog, "Can't find input device '%s': %v", r.Device, err)
 					r.Log(ErrorLog, "Retrying in 1 minute.")
 					time.Sleep(time.Minute)
 					continue

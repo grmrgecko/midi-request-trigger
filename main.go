@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"gitlab.com/gomidi/midi/v2"
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv"
 )
@@ -15,7 +15,7 @@ import (
 const (
 	serviceName        = "midi-request-trigger"
 	serviceDescription = "Takes trigger MIDI messages by HTTP or MQTT requests and trigger HTTP or MQTT requests by MIDI messages"
-	serviceVersion     = "0.3"
+	serviceVersion     = "0.4.1"
 )
 
 // App is the global application structure for communicating between servers and storing information.
