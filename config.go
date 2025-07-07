@@ -33,7 +33,7 @@ type LogConfig struct {
 	// go to the stderr. An file path, will log to the file. Using `default-file`
 	// it'll either save to `/var/log/name.log`, or to the same directory as the
 	// executable if the path is not writable, or on Windows.
-	Outputs []string `fig:"outputs" yaml:"outputs" default:"[console,default-file]"`
+	Outputs []string `fig:"outputs" yaml:"outputs" default:"console,default-file"`
 	// Maximum size of the log file in megabytes before it gets rotated.
 	MaxSize int `fig:"max_size" yaml:"max_size" default:"1"`
 	// Maximum number of backups to save.
